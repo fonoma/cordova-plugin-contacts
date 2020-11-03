@@ -597,16 +597,24 @@
     // NSLog(@"addressBook access: %lu", status);
     ABAddressBookRequestAccessWithCompletion(addressBook, ^(bool granted, CFErrorRef error) {
             // callback can occur in background, address book must be accessed on thread it was created on
-            dispatch_sync(dispatch_get_main_queue(), ^{
-                if (error) {
-                    workerBlock(NULL, [[CDVAddressBookAccessError alloc] initWithCode:UNKNOWN_ERROR]);
-                } else if (!granted) {
-                    workerBlock(NULL, [[CDVAddressBookAccessError alloc] initWithCode:PERMISSION_DENIED_ERROR]);
-                } else {
-                    // access granted
-                    workerBlock(addressBook, [[CDVAddressBookAccessError alloc] initWithCode:UNKNOWN_ERROR]);
-                }
-            });
+            // changed made to support remove contact in ios 14, docs: https://github.com/apache/cordova-plugin-contacts/issues/225
+             dispatch_block_t onMain = ^{
+            if (error) {
+                workerBlock(NULL, [[CDVAddressBookAccessError alloc] initWithCode:UNKNOWN_ERROR]);
+            } else if (!granted) {
+                workerBlock(NULL, [[CDVAddressBookAccessError alloc] initWithCode:PERMISSION_DENIED_ERROR]);
+            } else {
+                // access granted
+                workerBlock(addressBook, [[CDVAddressBookAccessError alloc] initWithCode:UNKNOWN_ERROR]);
+            }
+        };
+        
+            if ([NSThread isMainThread]) {
+                onMain();
+            } else {
+                // callback can occur in background, address book must be accessed on thread it was created on
+                dispatch_sync(dispatch_get_main_queue(), onMain);
+            }
         });
 }
 
